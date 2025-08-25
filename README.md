@@ -1,9 +1,9 @@
 # synapse
 IoT components
 
-#### devlog
+## devlog
 分设备日志，根据不同设备进行不同日志记录
-###### 使用流程
+#### 使用流程
 ```go
 err := devlog.LoadConfig(nil)
 if err != nil {
