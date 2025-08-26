@@ -22,14 +22,13 @@ func CreateDeviceLogger(deviceName, deviceType string, deviceId int) error {
 		DeviceName: deviceName,
 		DeviceId:   deviceId,
 		DeviceType: deviceType,
-		Key:        fmt.Sprintf("<name:%s type:%s id:%d>", deviceName, deviceType, deviceId),
 	}
 	sugarLogger, err := createLogConf(deviceName)
 	if err != nil {
 		return err
 	}
 	if runtime.GOOS == "windows" {
-		lm.SugaredLogger = sugarLogger.Named(lm.Key)
+		lm.SugaredLogger = sugarLogger.Named(fmt.Sprintf("<name:%s type:%s id:%d>", deviceName, deviceType, deviceId))
 	} else {
 		lm.SugaredLogger = sugarLogger
 	}
@@ -41,7 +40,6 @@ type LogModel struct {
 	DeviceName string
 	DeviceId   int
 	DeviceType string
-	Key        string
 	*zap.SugaredLogger
 }
 
