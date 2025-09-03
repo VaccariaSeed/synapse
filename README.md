@@ -150,3 +150,38 @@ err := client.SendMsg("topic", "message")
 //向主站发送消息并等待回复
 response, err := client.SendOnIdempotent("topic", "message"， timeout)
 ```
+
+## UDS通讯框架
+通过*.sock进行通讯。分为Master和slave，只能一对一通讯。 
+Sock属性是*.sock的名字，master和slave需要保持一致。
+#### 创建Master
+```go
+func clientClosed(err error) {
+    fmt.Println("client closed:", err)
+}
+
+func slaveMessageReceiveHandle(msg []byte) []byte {
+    fmt.Println("收到客户端的消息：" + string(msg) + "\n\n")
+    return nil
+}
+
+Master = vuds.UDSClient{
+		Sock:                       "uds",
+		ClientType:                 vuds.MASTER,
+		RetrySize:                  10,
+		RetryDelay:                 3,
+		ReadTimeout:                10,
+		UnexpectedCloseHandler:     clientClosed,
+		SlaveMessageReceiveHandler: slaveMessageReceiveHandle,
+	}
+err := Master.Connect()
+
+//发送消息
+err := Master.Send([]byte("wo shi master"))
+//发送消息并等待回复
+resp, err := Master.SendAndWaitForReply([]byte("message"), timeout)
+//关闭
+Master.Close()
+```
+#### 创建slave
+与**创建Master**相同，只是ClientType变更为vuds.SLAVE
