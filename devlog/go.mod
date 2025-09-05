@@ -1,4 +1,4 @@
-module devlog
+module github.com/VaccariaSeed/synapse/devlog
 
 go 1.23.2
 
