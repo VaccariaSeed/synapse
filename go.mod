@@ -1,6 +1,6 @@
-module github.com/VaccariaSeed/synapse/devlog
+module synapse
 
-go 1.23.2
+go 1.23.0
 
 require (
 	go.uber.org/zap v1.27.0
