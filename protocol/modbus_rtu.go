@@ -46,23 +46,21 @@ var crcLowBytes = []byte{
 	0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46, 0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80, 0x40,
 }
 
-type MRFuncCode byte
+var modbusRTUFuncCodeArray = []byte{ReadCoilsCode, ReadDiscreteInputsCode, ReadHoldingInputsCode, ReadInputInputsCode, WriteSingleCoilCode, WriteSingleRegisterCode, WriteMultipleCoilsCode, WriteMultipleRegistersCode}
 
 const (
-	crcSeat                    byte       = 0xFF
-	ModbusRTUPacketName                   = "modbus_rtu"
-	ReadCoilsCode              MRFuncCode = 0x01 //功能码 读线圈（Read Coils)
-	ReadDiscreteInputsCode     MRFuncCode = 0x02 //功能码 读离散输入寄存器（Read Discrete Inputs)
-	ReadHoldingInputsCode      MRFuncCode = 0x03
-	ReadInputInputsCode        MRFuncCode = 0x04
-	WriteSingleCoilCode        MRFuncCode = 0x05
-	WriteSingleRegisterCode    MRFuncCode = 0x06
-	WriteMultipleCoilsCode     MRFuncCode = 0x0F
-	WriteMultipleRegistersCode MRFuncCode = 0x10
-	rtuDataMaxSize                        = 252
+	crcSeat                    byte = 0xFF
+	ModbusRTUPacketName             = "modbus_rtu"
+	ReadCoilsCode              byte = 0x01 //功能码 读线圈（Read Coils)
+	ReadDiscreteInputsCode     byte = 0x02 //功能码 读离散输入寄存器（Read Discrete Inputs)
+	ReadHoldingInputsCode      byte = 0x03
+	ReadInputInputsCode        byte = 0x04
+	WriteSingleCoilCode        byte = 0x05
+	WriteSingleRegisterCode    byte = 0x06
+	WriteMultipleCoilsCode     byte = 0x0F
+	WriteMultipleRegistersCode byte = 0x10
+	rtuDataMaxSize                  = 252
 )
-
-var _ PacketParser = (*ModbusRTUPacket)(nil)
 
 func NewModbusRTUPacket(address uint8) *ModbusRTUPacket {
 	return &ModbusRTUPacket{address: address}
@@ -76,22 +74,57 @@ type ModbusRTUPacket struct {
 	crc      uint16 //校验码
 }
 
-func (m *ModbusRTUPacket) Decode(msg []byte) error {
+func (m *ModbusRTUPacket) Decode(msg []byte) (funcCode byte, result []byte, err error) {
 	reader := bufio.NewReader(bytes.NewBuffer(msg))
 	return m.DecodeByReader(reader)
 }
 
-func (m *ModbusRTUPacket) DecodeByReader(reader *bufio.Reader) error {
-	var err error
+// todo 没写完
+func (m *ModbusRTUPacket) DecodeByReader(reader *bufio.Reader) (funcCode byte, result []byte, err error) {
 	for {
 		var slaveId byte
-		err = binary.Read(reader, binary.LittleEndian, &slaceId)
+		err = binary.Read(reader, binary.LittleEndian, &slaveId)
 		if err != nil {
-			return err
+			return 0, nil, err
 		}
 		if slaveId != m.address {
-			return fmt.Errorf("error slaveId:%d", slaveId)
+			return 0, nil, fmt.Errorf("error slaveId:%d", slaveId)
 		}
+		//读取功能码
+		err = binary.Read(reader, binary.LittleEndian, &funcCode)
+		if err != nil {
+			return 0, nil, err
+		}
+		if bytes.IndexByte(modbusRTUFuncCodeArray, funcCode) == -1 {
+			return 0, nil, fmt.Errorf("error function code:%d", funcCode)
+		}
+		csArray := []byte{m.address, funcCode}
+		var data []byte
+		switch funcCode {
+		case ReadCoilsCode, ReadDiscreteInputsCode, ReadHoldingInputsCode, ReadInputInputsCode:
+			var dataSize byte
+			err = binary.Read(reader, binary.LittleEndian, &dataSize)
+			if err != nil {
+				return 0, nil, err
+			}
+			data = make([]byte, dataSize)
+			err = binary.Read(reader, binary.LittleEndian, &data)
+			if err != nil {
+				return 0, nil, err
+			}
+			csArray = append(csArray, dataSize)
+
+		case WriteSingleCoilCode, WriteSingleRegisterCode:
+			data = make([]byte, 4)
+			err = binary.Read(reader, binary.LittleEndian, &data)
+			if err != nil {
+				return 0, nil, err
+			}
+		case WriteMultipleCoilsCode, WriteMultipleRegistersCode:
+
+		}
+
+		csArray = append(csArray, data...)
 
 	}
 }
@@ -178,7 +211,7 @@ func (p *ModbusRTUPacket) CreateWriteMultipleRegisters(startAddress uint16, coil
 // funcCode 功能码
 // startAddress 寄存器起始地址
 // addressSize 寄存器数量
-func (p *ModbusRTUPacket) CreateReadFrame(funcCode MRFuncCode, startAddress uint16, addressSize uint16) ([]byte, error) {
+func (p *ModbusRTUPacket) CreateReadFrame(funcCode byte, startAddress uint16, addressSize uint16) ([]byte, error) {
 	if addressSize < 1 || addressSize > 125 {
 		return nil, fmt.Errorf("address size must be between 1 and 125")
 	}
